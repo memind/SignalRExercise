@@ -1,0 +1,200 @@
+﻿<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>SignalChat</title>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.js"
+        integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4=" crossorigin="anonymous"></script>
+
+
+    <script
+        src="C:\Users\rock_\OneDrive\Belgeler\PROJELER2\memind\SignalR.Exercise\SignalR.Chat\Client\node_modules\@microsoft\signalr\dist\webworker\signalr.min.js"></script>
+    <script
+        src="C:\Users\rock_\OneDrive\Belgeler\PROJELER2\memind\SignalR.Exercise\SignalR.Chat\Client\node_modules\@microsoft\signalr\dist\webworker\signalr.js"></script>
+    <link rel="stylesheet" href="bootstrap/css/bootstrap.css">
+    <script src="bootstrap/js/bootstrap.bundle.js"></script>
+
+    <script>
+        $(document).ready(() => {
+
+            const connection = new signalR.HubConnectionBuilder().withUrl("https://localhost:5001/chathub").build();
+            connection.start();
+
+            $(".disabled").attr("disabled", "disabled");
+
+            $("body").on("click", ".users", function () {
+                $(".users").each((index, item) => {
+                    item.classList.remove("active");
+                });
+                $(this).addClass("active");
+            });
+
+            $("#btnLogin").click(() => {
+                const nickName = $("#txtNickName").val();
+                connection.invoke("GetNickName", nickName).catch(error => console.log(error));
+                // $(".disabled").removeAttr("disabled");
+                $(".disabled").prop("disabled", false);
+
+                $(".disabled").removeClass("disabled");
+
+            });
+
+            connection.on("clientJoined", nickName => {
+                $("#clientStatusMessages").html(`${nickName} joined to chat!`);
+                $("#clientStatusMessages").fadeIn(2000, () => {
+                    setTimeout(() => {
+                        $("#clientStatusMessages").fadeOut(2000);
+                    }, 2000)
+                });
+            });
+
+            connection.on("clients", clients => {
+                $("#_clients").html("");
+                $.each(clients, (index, item) => {
+                    const user = $(".users").first().clone();
+                    user.removeClass("active");
+                    user.html(item.nickname)
+                    $("#_clients").append(user);
+                });
+            });
+
+            $("#btnSend").click(() => {
+                const clientName = $(".users.active").first().html();
+                const message = $("#txtMessage").first().val();
+                connection.invoke("SendMessageAsync", message, clientName);
+
+                const _message = $(".message").clone();
+                _message.removeClass("message");
+                _message.find("p").html(message);
+                _message.find("h5")[1].innerHTML = "You";
+                $(".chatScreen").append(_message);
+            });
+
+            let _groupName = "";
+            $("#btnSendToGroup").click(() => {
+                const message = $("#txtMessage").first().val();
+                if (_groupName != "") {
+                    connection.invoke("SendMessageToGroupAsync", _groupName, message);
+                    const _message = $(".message").clone();
+                    _message.removeClass("message");
+                    _message.find("p").html(message);
+                    _message.find("h5")[1].innerHTML = "You";
+                    $(".chatScreen").append(_message);
+                }
+            });
+
+            connection.on("receiveMessage", (message, nickname) => {
+                console.log(message);
+                const _message = $(".message").clone();
+                _message.removeClass("message");
+                _message.find("p").html(message);
+                _message.find("h5")[0].innerHTML = nickname;
+                $(".chatScreen").append(_message);
+            });
+
+            $("#btnCreateRoom").click(() => {
+                connection.invoke("AddGroup", $("#txtRoomName").val());
+            });
+
+            connection.on("groups", groups => {
+                $(".rooms").html("");
+                let options = `<option selected value="-1">Rooms</option>`;
+
+                $.each(groups, (index, item) => {
+                    options += `<option value="${item.groupName}">${item.groupName}</option>`;
+                });
+
+                $(".rooms").append(options);
+            });
+
+            $("#btnJoinRooms").click(() => {
+                let groupNames = [];
+                $(".rooms option:selected").map((i, e) => {
+                    groupNames.push(e.innerHTML);
+                });
+
+                connection.invoke("AddClientToGroup", groupNames);
+            });
+
+            $(".rooms").change(function () {
+                let groupName = $(this).val();
+                _groupName = groupName[0];
+                connection.invoke("GetClientToGroup", groupName[0]);
+            });
+        })
+    </script>
+</head>
+
+<body>
+    <div class="row">
+        <div class="col-md-1"></div>
+        <div class="col-md-10">
+            <div class="row">
+                <!-- Sol Menü -->
+                <div class="col-md-3">
+                    <!-- Oda -->
+                    <input class="form-control form-control-lg disabled" type="text" placeholder="Room name"
+                        id="txtRoomName" disabled>
+
+
+                    <button type="button" class="btn btn-info rightButton disabled" id="btnCreateRoom" disabled>Create
+                        Room</button>
+
+
+
+                    <select size="5" style="width: 100%;" class="form-select rooms disabled" multiple disabled>
+                        <option selected value="-1">Rooms</option>
+                    </select>
+                    <button type="button" class="btn btn-primary rightButton disabled" id="btnJoinRooms" disabled>Join
+                        Rooms</button>
+
+
+
+                    <!-- Oda -->
+                    <br><br><br>
+                    <!-- Clientlar -->
+                    <div class="list-group clients">
+                        <a class="list-group-item list-group-item-action users active">
+                            To Everybody
+                        </a>
+                        <div id="_clients">
+
+                        </div>
+                    </div>
+                    <!-- Clientlar -->
+                </div>
+                <div class="col-md-6">
+                    <div class="alert alert-success" id="clientStatusMessages" style="display: none;"></div>
+                    <!-- Mesajlasma -->
+                    <textarea class="form-control" style="margin-top: 5px;"
+                        placeholder="Enter message to send." rows="3" id="txtMessage"></textarea>
+                    <button type="button" class="btn btn-light right8utton" id="btnSend">Send</button>
+                    <button type="button" class="btn btn-light right8utton" id="btnSendToGroup">Send to Group</button>
+
+                    <br><br><br>
+
+                    <div class="list-group chatScreen">
+                        <a class="list-group-item list-group-item-action message" aria-current="true">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h5 class="mb-1"></h5>
+                                <h5 class="mb-2"></h5>
+                            </div>
+
+                            <p class="mb-1"></p>
+                        </a>
+                    </div>
+                    <!-- Mesajlasma -->
+                </div>
+                <div class="col-md-3">
+                    <input class="form-control form-control-lg" type="text" placeholder="Name/Nick" id="txtNickName">
+                    <button type="button" class="btn btn-success leftButton" id="btnLogin">Login</button>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-1"></div>
+    </div>
+</body>
+
+</html>
